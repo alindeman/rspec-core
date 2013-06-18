@@ -991,6 +991,15 @@ EOM
         $VERBOSE
       end
 
+      def ordering_strategy_for(name)
+        strategies = {
+          :random  => Ordering::RandomOrdering.new(self),
+          :default => Ordering::IdentityOrdering.new(self)
+        }
+
+        strategies[name]
+      end
+
     private
 
       def get_files_to_run(paths)
