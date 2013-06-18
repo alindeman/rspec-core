@@ -911,16 +911,6 @@ EOM
         order.to_s.match(/rand/)
       end
 
-      # @private
-      DEFAULT_ORDERING = lambda { |list| list }
-
-      # @private
-      RANDOM_ORDERING = lambda do |list|
-        Kernel.srand RSpec.configuration.seed
-        ordering = list.sort_by { Kernel.rand(list.size) }
-        Kernel.srand # reset random generation
-        ordering
-      end
 
       # Sets a strategy by which to order examples.
       #
@@ -935,14 +925,16 @@ EOM
       # @see #order_groups_and_examples
       # @see #order=
       # @see #seed=
-      def order_examples(&block)
-        @example_ordering_block = block
-        @order = "custom" unless built_in_orderer?(block)
+      def order_examples(ordering=nil, &block)
+        ordering = Ordering::ProcOrdering.new(self, &block) if block_given?
+
+        @example_ordering = ordering
+        @order = "custom" unless ordering.built_in?
       end
 
       # @private
       def example_ordering_block
-        @example_ordering_block ||= DEFAULT_ORDERING
+        @example_ordering ||= Ordering::IdentityOrdering.new(self)
       end
 
       # Sets a strategy by which to order groups.
@@ -958,14 +950,16 @@ EOM
       # @see #order_groups_and_examples
       # @see #order=
       # @see #seed=
-      def order_groups(&block)
-        @group_ordering_block = block
-        @order = "custom" unless built_in_orderer?(block)
+      def order_groups(ordering=nil, &block)
+        ordering = Ordering::ProcOrdering.new(self, &block) if block_given?
+
+        @group_ordering = ordering
+        @order = "custom" unless ordering.built_in?
       end
 
       # @private
       def group_ordering_block
-        @group_ordering_block ||= DEFAULT_ORDERING
+        @group_ordering ||= Ordering::IdentityOrdering.new(self)
       end
 
       # Sets a strategy by which to order groups and examples.
@@ -981,9 +975,11 @@ EOM
       # @see #order_examples
       # @see #order=
       # @see #seed=
-      def order_groups_and_examples(&block)
-        order_groups(&block)
-        order_examples(&block)
+      def order_groups_and_examples(ordering=nil, &block)
+        ordering = Ordering::ProcOrdering.new(self, &block) if block_given?
+
+        order_groups(ordering)
+        order_examples(ordering)
       end
 
       # Set Ruby warnings on or off
@@ -1117,7 +1113,7 @@ MESSAGE
       end
 
       def order_and_seed_from_seed(value)
-        order_groups_and_examples(&RANDOM_ORDERING)
+        order_groups_and_examples(Ordering::RandomOrdering.new(self))
         @order, @seed = 'rand', value.to_i
         [@order, @seed]
       end
@@ -1133,19 +1129,14 @@ MESSAGE
         @seed  = seed = seed.to_i if seed
 
         if randomize?
-          order_groups_and_examples(&RANDOM_ORDERING)
+          order_groups_and_examples(Ordering::RandomOrdering.new(self))
         elsif order == 'default'
           @order, @seed = nil, nil
-          order_groups_and_examples(&DEFAULT_ORDERING)
+          order_groups_and_examples(Ordering::IdentityOrdering.new(self))
         end
 
         return order, seed
       end
-
-      def built_in_orderer?(block)
-        [DEFAULT_ORDERING, RANDOM_ORDERING].include?(block)
-      end
-
     end
   end
 end
